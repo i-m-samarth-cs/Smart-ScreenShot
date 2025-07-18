@@ -1,0 +1,1132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ComponentXR - Interactive Object Selector & Drag-Drop</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: white;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            height: 100vh;
+            gap: 20px;
+            padding: 20px;
+        }
+
+        .camera-section {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .workspace-section {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .header h1 {
+            font-size: 2rem;
+            background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            font-size: 1rem;
+            opacity: 0.9;
+        }
+
+        .workflow {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+
+        .workflow-step {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 8px 16px;
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            font-weight: 600;
+            font-size: 0.9rem;
+            animation: pulse 2s infinite;
+        }
+
+        .workflow-arrow {
+            font-size: 1.2rem;
+            color: #ff6b6b;
+            animation: bounce 2s infinite;
+        }
+
+        .video-container {
+            position: relative;
+            flex: 1;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #000;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        #videoElement {
+            max-width: 100%;
+            max-height: 100%;
+            width: auto;
+            height: auto;
+            border-radius: 10px;
+            background: #000;
+            display: block;
+        }
+
+        .selection-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .selection-box {
+            position: absolute;
+            border: 2px dashed #ff6b6b;
+            background: rgba(255, 107, 107, 0.1);
+            border-radius: 5px;
+            pointer-events: none;
+            animation: selectionPulse 1s infinite;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(45deg, #ff6b6b, #ee5a24);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: linear-gradient(45deg, #4ecdc4, #44a08d);
+            color: white;
+        }
+
+        .btn-success {
+            background: linear-gradient(45deg, #a8e6cf, #56ab2f);
+            color: white;
+        }
+
+        .btn-danger {
+            background: linear-gradient(45deg, #ff6b6b, #c44569);
+            color: white;
+        }
+
+        .btn-info {
+            background: linear-gradient(45deg, #54a0ff, #2e86de);
+            color: white;
+        }
+
+        .btn-emoji {
+            font-size: 1.5rem;
+            padding: 8px 15px;
+            min-width: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn-emoji.active {
+            background: linear-gradient(45deg, #2ecc71, #27ae60);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .workspace {
+            width: 100%;
+            height: calc(100% - 100px);
+            border-radius: 10px;
+            background: rgba(0, 0, 0, 0.2);
+            border: 2px dashed rgba(255, 255, 255, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .workspace-header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .workspace-title {
+            font-size: 1.5rem;
+            color: #4ecdc4;
+            margin-bottom: 10px;
+        }
+
+        .workspace-instruction {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+
+        .workspace-controls {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .draggable-component {
+            position: absolute;
+            cursor: grab;
+            border: 2px solid #4ecdc4;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(5px);
+            transition: all 0.3s ease;
+            user-select: none;
+            z-index: 100;
+        }
+
+        .draggable-component:hover {
+            border-color: #ff6b6b;
+            box-shadow: 0 5px 15px rgba(78, 205, 196, 0.3);
+        }
+
+        .draggable-component.dragging {
+            cursor: grabbing;
+            z-index: 10000;
+            transform: scale(1.05);
+            box-shadow: 0 10px 30px rgba(255, 107, 107, 0.5);
+            border-color: #ff6b6b;
+        }
+
+        .component-image {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 8px;
+            pointer-events: none;
+        }
+
+        .component-label {
+            position: absolute;
+            top: -25px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            white-space: nowrap;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+        }
+
+        .draggable-component:hover .component-label {
+            opacity: 1;
+        }
+
+        .delete-btn {
+            position: absolute;
+            top: -10px;
+            right: -10px;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #ff4757;
+            color: white;
+            border: none;
+            font-size: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            z-index: 10001;
+        }
+
+        .draggable-component:hover .delete-btn {
+            opacity: 1;
+        }
+
+        .delete-btn:hover {
+            background: #ff3742;
+            transform: scale(1.1);
+        }
+
+        .status-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            text-align: center;
+            font-size: 0.9rem;
+            backdrop-filter: blur(5px);
+        }
+
+        .selection-mode {
+            background: rgba(255, 107, 107, 0.1);
+            border: 2px solid #ff6b6b;
+        }
+
+        .selection-mode .video-container {
+            cursor: crosshair;
+        }
+
+        .component-counter {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .loading-spinner {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid #4ecdc4;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        .camera-status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ff4757;
+            margin-right: 5px;
+            animation: blink 1s infinite;
+        }
+
+        .camera-status-indicator.active {
+            background: #2ecc71;
+            animation: none;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+            40% { transform: translateY(-10px); }
+            60% { transform: translateY(-5px); }
+        }
+
+        @keyframes selectionPulse {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 0.8; }
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0.3; }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                grid-template-columns: 1fr;
+                grid-template-rows: 1fr 1fr;
+            }
+            
+            .header h1 {
+                font-size: 1.5rem;
+            }
+            
+            .controls {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .btn {
+                width: 100%;
+                max-width: 200px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="camera-section" id="cameraSection">
+            <div class="header">
+                <h1>ComponentXR</h1>
+                <p class="subtitle">Select & Drag Objects from Reality</p>
+                <div class="workflow">
+                    <span class="workflow-step">Select</span>
+                    <span class="workflow-arrow">→</span>
+                    <span class="workflow-step">Capture</span>
+                    <span class="workflow-arrow">→</span>
+                    <span class="workflow-step">Drag</span>
+                    <span class="workflow-arrow">→</span>
+                    <span class="workflow-step">Drop</span>
+                </div>
+            </div>
+
+            <div class="video-container" id="videoContainer">
+                <video id="videoElement" autoplay muted playsinline></video>
+                <canvas id="selectionCanvas" class="selection-overlay"></canvas>
+            </div>
+
+            <div class="controls">
+                <button id="cameraToggleButton" class="btn btn-primary btn-emoji">
+                    <span class="camera-status-indicator" id="cameraStatusIndicator"></span> 📸
+                </button>
+                <button id="switchCameraButton" class="btn btn-secondary btn-emoji" disabled title="Switch Camera">🔄</button>
+                <button id="selectMode" class="btn btn-secondary" disabled>Select Mode</button>
+                <button id="captureComponent" class="btn btn-success" disabled>Capture Selected</button>
+                <button id="clearWorkspace" class="btn btn-danger">Clear All</button>
+            </div>
+
+            <div class="loading-spinner" id="loadingSpinner">
+                <div class="spinner"></div>
+                <p>Processing selection...</p>
+            </div>
+
+            <div class="status-bar" id="statusBar">
+                Ready - Click "📸" to begin
+            </div>
+        </div>
+
+        <div class="workspace-section">
+            <div class="workspace-header">
+                <h2 class="workspace-title">🎨 Interactive Workspace</h2>
+                <p class="workspace-instruction">Drag and drop your captured components here</p>
+            </div>
+
+            <div class="workspace-controls">
+                <button id="downloadWorkspace" class="btn btn-info">📸 Download Workspace</button>
+            </div>
+            
+            <div class="workspace" id="workspace">
+                <div class="component-counter" id="componentCounter">Components: 0</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let video;
+        let videoContainer;
+        let selectionCanvas;
+        let selectionCtx;
+        let captureCanvas;
+        let captureCtx;
+        let stream;
+        let isSelecting = false;
+        let isSelectMode = false;
+        let selectionStart = { x: 0, y: 0 };
+        let selectionEnd = { x: 0, y: 0 };
+        let currentSelection = null;
+        let componentCounter = 0;
+        let draggedElement = null;
+        let dragOffset = { x: 0, y: 0 };
+        let currentCameraIndex = 0;
+        let availableCameras = [];
+        let isCameraActive = false;
+        let videoRenderBounds = { x: 0, y: 0, width: 0, height: 0 };
+
+        async function init() {
+            video = document.getElementById('videoElement');
+            videoContainer = document.getElementById('videoContainer');
+            selectionCanvas = document.getElementById('selectionCanvas');
+            selectionCtx = selectionCanvas.getContext('2d');
+            
+            captureCanvas = document.createElement('canvas');
+            captureCtx = captureCanvas.getContext('2d');
+            
+            await getAvailableCameras();
+            setupEventListeners();
+            updateStatus('Ready - Click "📸" to begin');
+        }
+
+        async function getAvailableCameras() {
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                availableCameras = devices.filter(device => device.kind === 'videoinput');
+                console.log('Available cameras:', availableCameras.length);
+            } catch (error) {
+                console.error('Error getting cameras:', error);
+            }
+        }
+
+        function setupEventListeners() {
+            // Button events
+            document.getElementById('cameraToggleButton').addEventListener('click', toggleCamera);
+            document.getElementById('switchCameraButton').addEventListener('click', switchCamera);
+            document.getElementById('selectMode').addEventListener('click', toggleSelectMode);
+            document.getElementById('captureComponent').addEventListener('click', captureSelectedComponent);
+            document.getElementById('clearWorkspace').addEventListener('click', clearWorkspace);
+            document.getElementById('downloadWorkspace').addEventListener('click', downloadWorkspace);
+
+            // Video selection events - attach to video container for better event handling
+            videoContainer.addEventListener('mousedown', startSelection);
+            videoContainer.addEventListener('mousemove', updateSelection);
+            videoContainer.addEventListener('mouseup', endSelection);
+            videoContainer.addEventListener('mouseleave', endSelection);
+
+            // Touch events for mobile
+            videoContainer.addEventListener('touchstart', handleTouchStart, { passive: false });
+            videoContainer.addEventListener('touchmove', handleTouchMove, { passive: false });
+            videoContainer.addEventListener('touchend', handleTouchEnd, { passive: false });
+
+            // Global drag events
+            document.addEventListener('mousemove', handleGlobalMouseMove);
+            document.addEventListener('mouseup', handleGlobalMouseUp);
+            document.addEventListener('touchmove', handleGlobalTouchMove, { passive: false });
+            document.addEventListener('touchend', handleGlobalTouchEnd, { passive: false });
+
+            // Video load event
+            video.addEventListener('loadedmetadata', updateVideoRenderBounds);
+            video.addEventListener('resize', updateVideoRenderBounds);
+        }
+
+        function updateVideoRenderBounds() {
+            if (!video.videoWidth || !video.videoHeight) return;
+
+            setTimeout(() => {
+                const containerRect = videoContainer.getBoundingClientRect();
+                const videoRect = video.getBoundingClientRect();
+                
+                // Calculate the actual rendered video bounds within the container
+                const videoAspectRatio = video.videoWidth / video.videoHeight;
+                const containerAspectRatio = containerRect.width / containerRect.height;
+                
+                let renderWidth, renderHeight, offsetX, offsetY;
+                
+                if (videoAspectRatio > containerAspectRatio) {
+                    // Video is wider - limited by container width
+                    renderWidth = containerRect.width;
+                    renderHeight = containerRect.width / videoAspectRatio;
+                    offsetX = 0;
+                    offsetY = (containerRect.height - renderHeight) / 2;
+                } else {
+                    // Video is taller - limited by container height
+                    renderHeight = containerRect.height;
+                    renderWidth = containerRect.height * videoAspectRatio;
+                    offsetX = (containerRect.width - renderWidth) / 2;
+                    offsetY = 0;
+                }
+                
+                videoRenderBounds = {
+                    x: offsetX,
+                    y: offsetY,
+                    width: renderWidth,
+                    height: renderHeight
+                };
+                
+                // Update canvas size and position
+                selectionCanvas.width = renderWidth;
+                selectionCanvas.height = renderHeight;
+                selectionCanvas.style.left = `${offsetX}px`;
+                selectionCanvas.style.top = `${offsetY}px`;
+                selectionCanvas.style.width = `${renderWidth}px`;
+                selectionCanvas.style.height = `${renderHeight}px`;
+                
+                console.log('Video render bounds updated:', videoRenderBounds);
+            }, 100);
+        }
+
+        async function toggleCamera() {
+            if (isCameraActive) {
+                stopCamera();
+            } else {
+                await startCamera();
+            }
+        }
+
+        async function startCamera() {
+            if (stream) stopCamera();
+
+            try {
+                const constraints = {
+                    video: {
+                        deviceId: availableCameras[currentCameraIndex]?.deviceId || undefined,
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    },
+                    audio: false
+                };
+
+                stream = await navigator.mediaDevices.getUserMedia(constraints);
+                video.srcObject = stream;
+                
+                video.onloadedmetadata = () => {
+                    updateVideoRenderBounds();
+                };
+
+                isCameraActive = true;
+                updateCameraStatus();
+                
+                document.getElementById('selectMode').disabled = false;
+                document.getElementById('switchCameraButton').disabled = availableCameras.length <= 1;
+                
+                updateStatus('Camera active - Click "Select Mode" to start selecting objects');
+            } catch (error) {
+                console.error('Error starting camera:', error);
+                handleCameraError(error);
+            }
+        }
+
+        function stopCamera() {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                stream = null;
+            }
+            
+            video.srcObject = null;
+            isCameraActive = false;
+            updateCameraStatus();
+            
+            document.getElementById('selectMode').disabled = true;
+            document.getElementById('captureComponent').disabled = true;
+            document.getElementById('switchCameraButton').disabled = true;
+            
+            if (isSelectMode) {
+                toggleSelectMode();
+            }
+            
+            clearSelection();
+            updateStatus('Camera stopped - Click "📸" to start camera');
+        }
+
+        function handleCameraError(error) {
+            let errorMessage = 'Error accessing camera. ';
+            if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+                errorMessage += 'Permission denied. Please allow camera access.';
+            } else if (error.name === 'NotFoundError') {
+                errorMessage += 'No camera found.';
+            } else if (error.name === 'NotReadableError' || error.name === 'OverconstrainedError') {
+                errorMessage += 'Camera is in use or cannot be accessed.';
+            } else {
+                errorMessage += `Unknown error: ${error.message}`;
+            }
+            alert(errorMessage);
+            isCameraActive = false;
+            updateCameraStatus();
+        }
+
+        async function switchCamera() {
+            if (availableCameras.length <= 1) return;
+            
+            currentCameraIndex = (currentCameraIndex + 1) % availableCameras.length;
+            if (isCameraActive) {
+                await startCamera();
+            }
+        }
+
+        function updateCameraStatus() {
+            const statusIndicator = document.getElementById('cameraStatusIndicator');
+            const cameraToggleButton = document.getElementById('cameraToggleButton');
+            
+            if (isCameraActive) {
+                statusIndicator.classList.add('active');
+                cameraToggleButton.innerHTML = '<span class="camera-status-indicator active"></span> ⏸️';
+                cameraToggleButton.title = 'Stop Camera';
+            } else {
+                statusIndicator.classList.remove('active');
+                cameraToggleButton.innerHTML = '<span class="camera-status-indicator"></span> 📸';
+                cameraToggleButton.title = 'Start Camera';
+            }
+        }
+
+        function toggleSelectMode() {
+            isSelectMode = !isSelectMode;
+            const button = document.getElementById('selectMode');
+            const cameraSection = document.getElementById('cameraSection');
+            
+            if (isSelectMode) {
+                button.textContent = 'Exit Select Mode';
+                button.className = 'btn btn-danger';
+                cameraSection.classList.add('selection-mode');
+                updateStatus('Selection mode active - Click and drag to select objects');
+            } else {
+                button.textContent = 'Select Mode';
+                button.className = 'btn btn-secondary';
+                cameraSection.classList.remove('selection-mode');
+                clearSelection();
+                updateStatus('Selection mode disabled');
+            }
+        }
+
+        function getVideoRelativeCoords(e) {
+            const containerRect = videoContainer.getBoundingClientRect();
+            let clientX, clientY;
+
+            if (e.touches && e.touches.length > 0) {
+                clientX = e.touches[0].clientX;
+                clientY = e.touches[0].clientY;
+            } else {
+                clientX = e.clientX;
+                clientY = e.clientY;
+            }
+
+            // Get coordinates relative to video container
+            const containerX = clientX - containerRect.left;
+            const containerY = clientY - containerRect.top;
+
+            // Convert to video render area coordinates
+            const videoX = containerX - videoRenderBounds.x;
+            const videoY = containerY - videoRenderBounds.y;
+
+            return {
+                x: Math.max(0, Math.min(videoX, videoRenderBounds.width)),
+                y: Math.max(0, Math.min(videoY, videoRenderBounds.height))
+            };
+        }
+
+        function startSelection(e) {
+            if (!isSelectMode) return;
+            
+            e.preventDefault();
+            e.stopPropagation();
+            isSelecting = true;
+            
+            const coords = getVideoRelativeCoords(e);
+            selectionStart.x = coords.x;
+            selectionStart.y = coords.y;
+            selectionEnd.x = selectionStart.x;
+            selectionEnd.y = selectionStart.y;
+            
+            clearSelection();
+            updateStatus('Selecting area...');
+        }
+
+        function updateSelection(e) {
+            if (!isSelecting || !isSelectMode) return;
+            
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const coords = getVideoRelativeCoords(e);
+            selectionEnd.x = coords.x;
+            selectionEnd.y = coords.y;
+            
+            drawSelection();
+        }
+
+        function endSelection(e) {
+            if (!isSelecting || !isSelectMode) return;
+            
+            isSelecting = false;
+            
+            const width = Math.abs(selectionEnd.x - selectionStart.x);
+            const height = Math.abs(selectionEnd.y - selectionStart.y);
+            
+            if (width > 5 && height > 5) {
+                currentSelection = {
+                    x: Math.min(selectionStart.x, selectionEnd.x),
+                    y: Math.min(selectionStart.y, selectionEnd.y),
+                    width: width,
+                    height: height
+                };
+                
+                document.getElementById('captureComponent').disabled = false;
+                updateStatus(`Area selected (${Math.round(width)}x${Math.round(height)}) - Click "Capture Selected" to create component`);
+                drawSelection();
+            } else {
+                clearSelection();
+                updateStatus('Selection too small - try selecting a larger area');
+            }
+        }
+
+        function drawSelection() {
+            selectionCtx.clearRect(0, 0, selectionCanvas.width, selectionCanvas.height);
+            
+            if (currentSelection || isSelecting) {
+                const x = isSelecting ? Math.min(selectionStart.x, selectionEnd.x) : currentSelection.x;
+                const y = isSelecting ? Math.min(selectionStart.y, selectionEnd.y) : currentSelection.y;
+                const width = isSelecting ? Math.abs(selectionEnd.x - selectionStart.x) : currentSelection.width;
+                const height = isSelecting ? Math.abs(selectionEnd.y - selectionStart.y) : currentSelection.height;
+                
+                // Draw selection rectangle
+                selectionCtx.strokeStyle = '#ff6b6b';
+                selectionCtx.lineWidth = 2;
+                selectionCtx.setLineDash([5, 5]);
+                selectionCtx.strokeRect(x, y, width, height);
+                
+                // Draw selection fill
+                selectionCtx.fillStyle = 'rgba(255, 107, 107, 0.1)';
+                selectionCtx.fillRect(x, y, width, height);
+                
+                // Draw corner handles
+                const handleSize = 8;
+                selectionCtx.fillStyle = '#ff6b6b';
+                selectionCtx.setLineDash([]);
+                selectionCtx.fillRect(x - handleSize/2, y - handleSize/2, handleSize, handleSize);
+                selectionCtx.fillRect(x + width - handleSize/2, y - handleSize/2, handleSize, handleSize);
+                selectionCtx.fillRect(x - handleSize/2, y + height - handleSize/2, handleSize, handleSize);
+                selectionCtx.fillRect(x + width - handleSize/2, y + height - handleSize/2, handleSize, handleSize);
+            }
+        }
+
+        function clearSelection() {
+            selectionCtx.clearRect(0, 0, selectionCanvas.width, selectionCanvas.height);
+            currentSelection = null;
+            document.getElementById('captureComponent').disabled = true;
+        }
+
+        async function captureSelectedComponent() {
+            if (!currentSelection || !isCameraActive) return;
+            
+            document.getElementById('loadingSpinner').style.display = 'block';
+            document.getElementById('captureComponent').disabled = true;
+            
+            await new Promise(resolve => setTimeout(resolve, 300));
+            
+            // Calculate scale factors between canvas and video
+            const scaleX = video.videoWidth / videoRenderBounds.width;
+            const scaleY = video.videoHeight / videoRenderBounds.height;
+            
+            // Map selection coordinates to video coordinates
+            const sourceX = currentSelection.x * scaleX;
+            const sourceY = currentSelection.y * scaleY;
+            const sourceWidth = currentSelection.width * scaleX;
+            const sourceHeight = currentSelection.height * scaleY;
+            
+            // Set capture canvas size
+            captureCanvas.width = sourceWidth;
+            captureCanvas.height = sourceHeight;
+            
+            // Draw selected area from video
+            captureCtx.drawImage(
+                video,
+                sourceX, sourceY, sourceWidth, sourceHeight,
+                0, 0, captureCanvas.width, captureCanvas.height
+            );
+            
+            // Complete the captureSelectedComponent function
+            const imageData = captureCanvas.toDataURL('image/png');
+            
+            // Create draggable component - keeping the same size as selection
+            createDraggableComponent(imageData, currentSelection.width, currentSelection.height);
+            
+            document.getElementById('loadingSpinner').style.display = 'none';
+            clearSelection();
+            updateStatus(`Component captured! Components: ${componentCounter}`);
+            
+            if (isSelectMode) {
+                toggleSelectMode();
+            }
+        }
+
+        function createDraggableComponent(imageData, width, height) {
+            componentCounter++;
+            
+            const component = document.createElement('div');
+            component.className = 'draggable-component';
+            component.style.width = `${width}px`;
+            component.style.height = `${height}px`;
+            component.style.left = `${Math.random() * 200 + 50}px`;
+            component.style.top = `${Math.random() * 200 + 50}px`;
+            component.dataset.componentId = componentCounter;
+            
+            const img = document.createElement('img');
+            img.src = imageData;
+            img.className = 'component-image';
+            img.alt = `Component ${componentCounter}`;
+            
+            const label = document.createElement('div');
+            label.className = 'component-label';
+            label.textContent = `Component ${componentCounter}`;
+            
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'delete-btn';
+            deleteBtn.innerHTML = '×';
+            deleteBtn.title = 'Delete component';
+            deleteBtn.onclick = (e) => {
+                e.stopPropagation();
+                deleteComponent(component);
+            };
+            
+            component.appendChild(img);
+            component.appendChild(label);
+            component.appendChild(deleteBtn);
+            
+            // Add drag event listeners
+            component.addEventListener('mousedown', startDrag);
+            component.addEventListener('touchstart', startDragTouch, { passive: false });
+            
+            document.getElementById('workspace').appendChild(component);
+            updateComponentCounter();
+        }
+
+        function deleteComponent(component) {
+            component.remove();
+            componentCounter--;
+            updateComponentCounter();
+            updateStatus(`Component deleted. Components: ${componentCounter}`);
+        }
+
+        function startDrag(e) {
+            if (e.target.classList.contains('delete-btn')) return;
+            
+            e.preventDefault();
+            e.stopPropagation();
+            
+            draggedElement = e.currentTarget;
+            draggedElement.classList.add('dragging');
+            
+            const rect = draggedElement.getBoundingClientRect();
+            const workspaceRect = document.getElementById('workspace').getBoundingClientRect();
+            
+            dragOffset.x = e.clientX - rect.left;
+            dragOffset.y = e.clientY - rect.top;
+            
+            updateStatus('Dragging component...');
+        }
+
+        function startDragTouch(e) {
+            if (e.target.classList.contains('delete-btn')) return;
+            
+            e.preventDefault();
+            e.stopPropagation();
+            
+            draggedElement = e.currentTarget;
+            draggedElement.classList.add('dragging');
+            
+            const rect = draggedElement.getBoundingClientRect();
+            const touch = e.touches[0];
+            
+            dragOffset.x = touch.clientX - rect.left;
+            dragOffset.y = touch.clientY - rect.top;
+            
+            updateStatus('Dragging component...');
+        }
+
+        function handleGlobalMouseMove(e) {
+            if (!draggedElement) return;
+            
+            e.preventDefault();
+            updateDragPosition(e.clientX, e.clientY);
+        }
+
+        function handleGlobalTouchMove(e) {
+            if (!draggedElement) return;
+            
+            e.preventDefault();
+            const touch = e.touches[0];
+            updateDragPosition(touch.clientX, touch.clientY);
+        }
+
+        function updateDragPosition(clientX, clientY) {
+            const workspaceRect = document.getElementById('workspace').getBoundingClientRect();
+            
+            let newX = clientX - workspaceRect.left - dragOffset.x;
+            let newY = clientY - workspaceRect.top - dragOffset.y;
+            
+            // Keep component within workspace bounds
+            const componentRect = draggedElement.getBoundingClientRect();
+            newX = Math.max(0, Math.min(newX, workspaceRect.width - componentRect.width));
+            newY = Math.max(0, Math.min(newY, workspaceRect.height - componentRect.height));
+            
+            draggedElement.style.left = `${newX}px`;
+            draggedElement.style.top = `${newY}px`;
+        }
+
+        function handleGlobalMouseUp(e) {
+            if (!draggedElement) return;
+            
+            draggedElement.classList.remove('dragging');
+            draggedElement = null;
+            dragOffset = { x: 0, y: 0 };
+            
+            updateStatus(`Component moved. Components: ${componentCounter}`);
+        }
+
+        function handleGlobalTouchEnd(e) {
+            if (!draggedElement) return;
+            
+            draggedElement.classList.remove('dragging');
+            draggedElement = null;
+            dragOffset = { x: 0, y: 0 };
+            
+            updateStatus(`Component moved. Components: ${componentCounter}`);
+        }
+
+        function handleTouchStart(e) {
+            if (isSelectMode) {
+                startSelection(e);
+            }
+        }
+
+        function handleTouchMove(e) {
+            if (isSelectMode) {
+                updateSelection(e);
+            }
+        }
+
+        function handleTouchEnd(e) {
+            if (isSelectMode) {
+                endSelection(e);
+            }
+        }
+
+        function clearWorkspace() {
+            const workspace = document.getElementById('workspace');
+            const components = workspace.querySelectorAll('.draggable-component');
+            components.forEach(component => component.remove());
+            
+            componentCounter = 0;
+            updateComponentCounter();
+            updateStatus('Workspace cleared');
+        }
+
+        function downloadWorkspace() {
+            const workspace = document.getElementById('workspace');
+            const workspaceRect = workspace.getBoundingClientRect();
+            
+            // Create a canvas for the workspace
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = workspaceRect.width;
+            canvas.height = workspaceRect.height;
+            
+            // Fill background
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw each component
+            const components = workspace.querySelectorAll('.draggable-component');
+            let loadedImages = 0;
+            const totalImages = components.length;
+            
+            if (totalImages === 0) {
+                // No components to download
+                downloadCanvas(canvas, 'workspace.png');
+                return;
+            }
+            
+            components.forEach((component, index) => {
+                const img = component.querySelector('.component-image');
+                const tempImg = new Image();
+                
+                tempImg.onload = function() {
+                    const x = parseInt(component.style.left);
+                    const y = parseInt(component.style.top);
+                    const width = parseInt(component.style.width);
+                    const height = parseInt(component.style.height);
+                    
+                    ctx.drawImage(tempImg, x, y, width, height);
+                    
+                    loadedImages++;
+                    if (loadedImages === totalImages) {
+                        downloadCanvas(canvas, 'workspace.png');
+                    }
+                };
+                
+                tempImg.src = img.src;
+            });
+        }
+
+        function downloadCanvas(canvas, filename) {
+            const link = document.createElement('a');
+            link.download = filename;
+            link.href = canvas.toDataURL();
+            link.click();
+            updateStatus('Workspace downloaded!');
+        }
+
+        function updateComponentCounter() {
+            document.getElementById('componentCounter').textContent = `Components: ${componentCounter}`;
+        }
+
+        function updateStatus(message) {
+            document.getElementById('statusBar').textContent = message;
+        }
+
+        // Initialize the application when DOM is loaded
+        document.addEventListener('DOMContentLoaded', init);
+
+        // Initialize the application
+        init();
+    </script>
+</body>
+</html>
